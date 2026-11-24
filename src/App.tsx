@@ -1,122 +1,84 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import { testWebGPU, type WebGpuCheckResult } from './benchmarks/webgpuCheck';
+import { runFmaBenchmark, type FmaBenchmarkResult } from './benchmarks/fmaBenchmark';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [checkResult, setCheckResult] = useState<WebGpuCheckResult | null>(null);
+  const [benchResult, setBenchResult] = useState<FmaBenchmarkResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleRun = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const check = await testWebGPU();
+      setCheckResult(check);
+      if (check.supported) {
+        const bench = await runFmaBenchmark();
+        setBenchResult(bench);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nieznany błąd benchmarku');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+        <h1 className="text-2xl font-bold">WebGPU Benchmark</h1>
+
         <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+          onClick={handleRun}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg font-medium cursor-pointer"
         >
-          Count is {count}
+          {loading ? 'Wykonywanie benchmarku...' : 'Uruchom test i benchmark FMA'}
         </button>
-      </section>
 
-      <div className="ticks"></div>
+        {error && (
+          <div className="p-4 rounded-lg bg-red-950/50 border border-red-800 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {checkResult && (
+          <div className="space-y-2 text-sm bg-slate-950 p-4 rounded-lg border border-slate-800">
+            <h2 className="font-semibold text-slate-300">Wykryte GPU</h2>
+            {checkResult.supported ? (
+              <>
+                <p><span className="text-slate-400">Vendor:</span> {checkResult.adapterInfo?.vendor}</p>
+                <p><span className="text-slate-400">Architektura:</span> {checkResult.adapterInfo?.architecture}</p>
+                <p><span className="text-slate-400">Opis:</span> {checkResult.adapterInfo?.description}</p>
+              </>
+            ) : (
+              <p className="text-red-400">{checkResult.error}</p>
+            )}
+          </div>
+        )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {benchResult && (
+          <div className="space-y-2 text-sm bg-slate-950 p-4 rounded-lg border border-emerald-800/60">
+            <h2 className="font-semibold text-emerald-400">Wynik benchmarku FMA (f32)</h2>
+            <p>
+              <span className="text-slate-400">Średni czas przebiegu:</span>{' '}
+              <span className="font-mono font-bold text-white">{benchResult.avgTimeMs.toFixed(2)} ms</span>
+            </p>
+            <p>
+              <span className="text-slate-400">Łączny czas ({benchResult.runs} przebiegów):</span>{' '}
+              <span className="font-mono">{benchResult.totalTimeMs.toFixed(2)} ms</span>
+            </p>
+            <p>
+              <span className="text-slate-400">Wydajność:</span>{' '}
+              <span className="font-mono font-bold text-emerald-400">{benchResult.gflops.toFixed(1)} GFLOPS</span>
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
